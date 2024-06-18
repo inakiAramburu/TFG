@@ -51,7 +51,7 @@ If these variables are not set the container does not start
    - DATABASE_HOST
 
 ## Certificates
-To generate SSL certificates for the development environment, [minica](https://bitbucket.org/iaramburu-tfg/devopsutility/src/main/) has been utilized.
+To generate SSL certificates for the development environment, [minica](https://github.com/inakiAramburu/TFG/tree/main/devopsutility) has been utilized.
 
 A wildcard certificate has been employed in the certificate generation to encompass all domains under 'tfg.test,' thereby simplifying certificate management. It is important to note that when using certificates in containers, container names must end with 'tfg.test' to ensure proper certificate functionality.
 
