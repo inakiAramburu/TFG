@@ -54,6 +54,6 @@ It only accepts requests with the "Accept application/json" header, otherwise it
 * GET /api/v1/patient : get all patients, in json format.
 * GET /api/v1/patient/summary/{patient_id} : get a summary of patient data and patient symptoms.
 
-# para hacer el secret
+# kubernetes secret
 kubectl create secret tls gateway-cert-name     --cert=devops/apache/certs/cert-pro.pem     --key=devops/apache/certs/key-pro.pem
 
