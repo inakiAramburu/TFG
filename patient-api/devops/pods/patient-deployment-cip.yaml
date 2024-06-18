@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-api-deployment
+spec:
+  selector:
+    matchLabels:
+      app: patient-api
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: patient-api
+    spec:
+      containers:
+      - name: patient-api
+        image: "europe-west1-docker.pkg.dev/tfg-naru/tfgrepo/image-tfg-patient-api-pipeline:[version]"
+        env:  # Aquí se agregan las variables de entorno
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: patient-api-secret
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: patient-api-secret
+              key: MYSQL_DATABASE
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: patient-api-secret
+              key: MYSQL_USER
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: patient-api-secret
+              key: MYSQL_PASSWORD
+        - name: DATABASE_HOST
+          valueFrom:
+            secretKeyRef:
+              name: patient-api-secret
+              key: DATABASE_HOST
+        - name: DATABASE_PORT
+          valueFrom:
+            secretKeyRef:
+              name: patient-api-secret
+              key: DATABASE_PORT
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tfgpatientapitfgtest
+  annotations:
+    cloud.google.com/app-protocols: '{"port-https":"HTTPS"}'
+spec:
+  type: ClusterIP
+  selector:
+    app: patient-api
+  ports:
+  - name: https
+    port: 443
+    targetPort: 443
+

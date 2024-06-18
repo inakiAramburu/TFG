@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  selector:
+    matchLabels:
+      app: api-gateway
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        role: tfg-gateway-api.tfg.test
+    spec:
+      containers:
+      - name: api-gateway-tfg-test
+        image: image-api-gateway-pruebaslocal:1.0.0
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 443
+            scheme: HTTPS
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 160
+          periodSeconds: 20
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tfg-gateway-api
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http  # Add name for port 80
+  - port: 443
+    targetPort: 443
+    name: https  # Add name for port 443
+  selector:
+    role: tfg-gateway-api.tfg.test
+
+
+
+
+
+
+
+
+

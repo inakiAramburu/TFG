@@ -1,0 +1,165 @@
+
+
+image: php:8.2.18-fpm-alpine3.19
+
+test: &test
+  parallel:
+    # Run tests and linting in parallel
+    - step:
+        name: "analyse"
+        runs-on:
+          - dockercontainerrunner
+        caches:
+          - pip
+        script:
+          - composer require --dev phpstan/phpstan
+          - vendor/bin/phpstan analyse src
+
+    - step:
+        name: "Run tests"
+        runs-on:
+          - dockercontainerrunner
+        caches:
+          - pip
+        script:
+          - php artisan test
+    - step:
+        name: "Test coverage (79%)"
+        runs-on:
+          - dockercontainerrunner
+        script:
+          - apt-get install -y php-xdebug
+          - apt-get install php-xml php-xmlwriter php-dom
+          - composer require --dev phpunit/phpunit
+          - XDEBUG_MODE=coverage vendor/bin/phpunit --stop-on-failure --coverage-text=coverage.report.txt
+          - php devops/pipeline/phpunit_threshold_coverage.php coverage.report.txt 79
+
+build-runner: &build-runner
+  step:
+    name: "Build container image"
+    runs-on:
+      - dockercontainerrunner
+    script:
+      - export DOCKER_HOST=""
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      # Build the image
+      - docker build -t $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0 -f devops/dockerfile-qa .
+
+changelog: &changelog
+  step:
+    name: "Generate changelog if MergeCommit"
+    runs-on:
+      - dockercontainerrunner
+    script:
+      - echo "Checking Merge Commit"
+      - chmod +x MergeCommitCheck.sh && ./devops/changelog/MergeCommitCheck.sh
+    artifacts:
+      - CHANGELOG.md
+
+push-image-preqa: &push-image-preqa
+  step:
+    name: "Build container image"
+    runs-on: runnershellindocker
+    shell: bash
+    trigger: manual
+    script:
+      - export DOCKER_HOST=""
+      - whoami
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      # Build the image
+      - docker build -t $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0 -f devops/dockerfile-qa . 
+
+deploy-image-preqa: &deploy-image-preqa
+  step:
+    name: "Deploy container image pre-qa"
+    runs-on: runnershellindocker
+    deployment: preqa
+    script:
+      - export DOCKER_HOST=""
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      - docker rm -f tfg-gateway-api.tfg.test 2>/dev/null || true
+      - docker run -d --name tfg-gateway-api.tfg.test -e MYSQL_ROOT_PASSWORD=Maite123 -e MYSQL_DATABASE=listpacients -e MYSQL_USER=listpacients -e MYSQL_PASSWORD=contrasena_listpacients -e DATABASE_HOST=127.0.0.1 -e DATABASE_PORT=3306 -v my_mysql:/var/lib/mysql -p 9080:80 -p 9040:443 -p 3306:3306 --network=tfg_develop_infrastructure $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0
+
+push-image-GCP: &push-image-GCP
+  step:
+    name: "Push to GCP"
+    trigger: manual
+    script:
+      - export DOCKER_BUILDKIT=1
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      # Build the image
+      - docker build -t $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0 -f devops/dockerfile-qa . 
+      - pipe: atlassian/google-gar-push-image:0.3.0
+        variables:
+          KEY_FILE: $GOOGLE_APPLICATION_CREDENTIALS
+          LOCATION: "europe-west1"
+          PROJECT: "tfg-naru"
+          REPOSITORY: "tfgrepo"
+          IMAGE_NAME: $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER
+          TAGS: $BITBUCKET_BUILD_NUMBER.0.0
+
+deploy-GCP: &deploy-GCP
+  step:
+    name: "Deploy to GCP"
+    deployment: Production
+    script:
+      - chmod +x devops/pods/cambiarVersion.sh
+      - ./devops/pods/cambiarVersion.sh $BITBUCKET_BUILD_NUMBER.0.0
+      - pipe: atlassian/google-gke-kubectl-run:3.3.0
+        variables:
+          KEY_FILE: $GOOGLE_APPLICATION_CREDENTIALS
+          LOCATION: "europe-west1"
+          PROJECT: "tfg-naru"
+          COMPUTE_ZONE: 'europeb-west1'
+          CLUSTER_NAME: 'cluster-1'
+          KUBECTL_COMMAND: 'apply'
+          RESOURCE_PATH: 'devops/pods/gatewayApi-deployment-service-ingress.yaml'
+
+GCP-secrets: &GCP-secrets
+  step:
+    name: "Deploy to GCP"
+    deployment: Production
+    script:
+      - chmod +x 'devops/pods/secretsGenerator.sh && ./devops/pods/secretsGenerator.sh'
+      - pipe: atlassian/google-gke-kubectl-run:3.3.0
+        variables:
+          KEY_FILE: $GOOGLE_APPLICATION_CREDENTIALS
+          LOCATION: "europe-west1"
+          PROJECT: "tfg-naru"
+          COMPUTE_ZONE: 'europeb-west1'
+          CLUSTER_NAME: 'cluster-1'
+          KUBECTL_COMMAND: 'apply'
+          RESOURCE_PATH: 'devops/pods/secrets.yaml'
+
+pipelines:
+  default:
+    - <<: *test
+    - <<: *build-runner
+  branches:
+    master:
+      - <<: *test
+      - <<: *build-runner
+      - <<: *changelog
+      - <<: *push-image-GCP
+      - <<: *GCP-secrets
+      - <<: *deploy-GCP
+    develop:
+      - <<: *test
+      - <<: *build-runner
+      - <<: *changelog
+      - <<: *push-image-preqa
+      - <<: *deploy-image-preqa
+    release/*:
+      - <<: *test
+      - <<: *build-runner
+      - <<: *changelog
+      - <<: *push-image-preqa
+      - <<: *deploy-image-preqa
+
+
+  pull-requests:
+      '**':
+      - <<: *test
+      - <<: *build-runner
+      - <<: *push-image-preqa
+      - <<: *deploy-image-preqa

@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+
+
+  tfg-gateway-api.tfg.test:
+      build:
+        context: .
+        dockerfile: devops/dockerfile
+      image: image-tfg-gateway-api
+      container_name: tfg-gateway-api.tfg.test
+      env_file:
+        - src/.env
+
+      ports:
+        - 9880:80
+        - 9440:443
+
+      networks:
+        - tfg_develop_infrastructure
+      volumes:
+      - ./src:/var/www
+      - ./devops/apache/sites-available/:/etc/apache2/sites-available/
+
+      
+networks:
+  tfg_develop_infrastructure:
+    name: tfg_develop_infrastructure
+
+#docker build -t image-api-gateway-pruebaslocal:1.0.0 -f devops/dockerfile-qa .
+#docker run -d -i --name api-gateway-tfg-test -p 9440:443 -p 9880:80 image-api-gateway-pruebaslocal:1.0.0

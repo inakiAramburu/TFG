@@ -1,0 +1,24 @@
+FROM golang
+
+RUN apt-get update && apt-get install -y \
+    git
+
+RUN git clone https://github.com/jsha/minica.git
+
+WORKDIR /go/minica
+
+RUN go build
+RUN go install
+
+
+VOLUME [ "/certificates" ]
+
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+
+
+#CMD ["sh", "-c", "while true; do sleep 1000; done"]

@@ -1,0 +1,1 @@
+{"version":1,"defects":[],"times":{"Tests\\Feature\\AllPatientsGetTest::test_AllPatientsGet_should_return_a_collection_of_patients":0.435,"Tests\\Feature\\PatientSummaryGetTest::test_PatientSummaryGet_should_return_a_patient_summary":0.029}}

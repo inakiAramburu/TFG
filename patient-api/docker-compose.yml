@@ -1,0 +1,35 @@
+version: '3'
+
+services:
+  tfg-patient-api.tfg.test:
+    build:
+      context: .
+      dockerfile: devops/dockerfile
+    image: image-tfg-patient-api
+    container_name: tfg-patient-api.tfg.test
+    environment:
+      - MYSQL_ROOT_PASSWORD=Maite123
+      - MYSQL_DATABASE=listpacients
+      - MYSQL_USER=listpacients
+      - MYSQL_PASSWORD=contrasena_listpacients
+      - DATABASE_HOST=127.0.0.1
+      - DATABASE_PORT=3306
+    volumes:
+      - ./src:/opt/src
+      - ./devops/apache/sites-available/:/etc/apache2/sites-available/
+      - my_mysql:/var/lib/mysql
+    ports:
+      - 9080:80
+      - 9040:443
+      - 3306:3306
+    networks:
+      - tfg_develop_infrastructure
+volumes:
+  my_mysql:
+    name: my_mysql_patient_api
+  
+networks:
+  tfg_develop_infrastructure:
+    driver: bridge
+    name: tfg_develop_infrastructure
+

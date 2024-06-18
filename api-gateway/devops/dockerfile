@@ -1,0 +1,85 @@
+FROM ubuntu:22.04
+
+
+######### Apache #########
+# ubuntu server lts + apache + PHP 
+RUN apt update && apt-get update && apt upgrade -y
+RUN apt install wget -y 
+
+
+
+RUN apt-get install apache2 -y
+RUN a2enmod rewrite
+RUN service apache2 restart
+
+
+
+#copiar certificados 
+COPY ./devops/apache/certs/cert.pem /etc/ssl/certs/localhost.crt
+COPY ./devops/apache/certs/key.pem /etc/ssl/private/localhost.key
+
+
+
+#certificado de la CA minica
+COPY ./devops/apache/certs/CA/minica.pem /usr/local/share/ca-certificates/minica.crt
+RUN chmod 644 /usr/local/share/ca-certificates/minica.crt
+RUN update-ca-certificates
+## habilitar modulo ssl
+RUN a2enmod ssl
+RUN a2ensite default-ssl
+
+
+
+##Evasión de ataques DDoS##
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt install -y libapache2-mod-evasive
+COPY devops/apache/mods-available/evasive.conf etc/apache2/mods-available/evasive.conf
+
+
+##Módulo de cabeceras##
+RUN a2enmod headers
+RUN service apache2 restart 
+
+##instalar php
+RUN apt install -y software-properties-common && \
+    add-apt-repository -y ppa:ondrej/php && \
+    apt-get update && \
+    apt-get -y install wget php8.2 php8.2-cli php8.2-xml php8.2-mbstring php8.2-gd php8.2-opcache php8.2-curl zip && \
+    apt-get install php8.2-mysql php8.2-xdebug -y 
+
+
+##Módulo PHP8.2
+RUN a2enmod php8.2
+#esto no hace falta por que no esta por defecto en esta imagen
+#RUN a2dismod php7.2
+RUN service apache2 restart
+##Deshabilitar el listado de directorios
+RUN a2dismod --force autoindex
+RUN service apache2 restart
+
+
+##Instalar Composer
+WORKDIR /tmp
+RUN apt-get install -y curl 
+RUN apt install -y wget
+RUN curl -sS https://getcomposer.org/installer -o composer-setup.php && \
+    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
+    HASH="$(wget -q -O - https://composer.github.io/installer.sig)" && \
+    php -r "if (hash_file('SHA384', 'composer-setup.php') === '$HASH') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" && \
+    php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+
+##entrypoint##
+COPY ./devops/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT [ "/entrypoint.sh" ]
+
+WORKDIR /var/www/
+
+COPY ./src /var/www
+COPY ./devops/apache/sites-available/ /etc/apache2/sites-available/
+
+#CMD ["sh", "-c", "while true; do sleep 1000; done"]
+# Comando para iniciar Apache en primer plano
+CMD ["apache2ctl", "-D", "FOREGROUND"]
+EXPOSE 80
+EXPOSE 443

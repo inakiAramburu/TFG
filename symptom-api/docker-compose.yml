@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  tfg-symptom-api.tfg.test:
+    build:
+      context: .
+      dockerfile: devops/dockerfile
+    image: image-tfg-symptom-api
+    container_name: tfg-symptom-api.tfg.test
+    environment:
+      - MYSQL_ROOT_PASSWORD=Maite123
+      - MYSQL_DATABASE=listsymptom
+      - MYSQL_USER=listsymptom
+      - MYSQL_PASSWORD=contrasena_listsymptom
+      - DATABASE_HOST=127.0.0.1
+      - DATABASE_PORT=3306
+#      docker run -d --name tfg-symptom-api.tfg.test -e MYSQL_ROOT_PASSWORD=Maite123 -e MYSQL_DATABASE=listsymptom -e MYSQL_USER=listsymptom -e MYSQL_PASSWORD=contrasena_listsymptom -e DATABASE_HOST=127.0.0.1 -e DATABASE_PORT=3306 -v my_mysql_symptom_api:/var/lib/mysql -p 9081:80 -p 9041:443 -p 3316:3306 --network=tfg_develop_infrastructure image-tfg-symptom-api-pruebaslocal:1.0.0
+#docker build -t image-tfg-symptom-api-pruebaslocal:1.0.0 -f devops/dockerfile-qa . 
+
+    volumes:
+      - ./src:/opt/src
+      - ./devops/apache/sites-available/:/etc/apache2/sites-available/
+      - my_mysql:/var/lib/mysql
+
+    ports:
+      - 9081:80
+      - 9041:443
+      - 3316:3306
+    networks:
+    - tfg_develop_infrastructure
+volumes:
+  my_mysql:
+    name: my_mysql_symptom_api
+
+networks:
+  tfg_develop_infrastructure:
+    driver: bridge
+    name: tfg_develop_infrastructure
+

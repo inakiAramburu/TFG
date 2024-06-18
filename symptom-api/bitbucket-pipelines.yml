@@ -1,0 +1,168 @@
+# Template python-build
+
+# This template allows you to validate your python code.
+# The workflow allows running tests and code linting on the default branch.2.0
+
+image: python:3.12
+
+test: &test
+  parallel:
+    # Run tests and linting in parallel
+    - step:
+        name: "Check code with Ruff"
+        runs-on:
+          - dockercontainerrunner
+        caches:
+          - pip
+        script:
+          - if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          - pip install ruff
+          - ruff check --fix src/
+    - step:
+        name: "Run tests"
+        runs-on:
+          - dockercontainerrunner
+        caches:
+          - pip
+        script:
+          - if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          - cd src/ && python manage.py test --failfast --parallel
+    - step:
+        name: "Test coverage (70%)"
+        runs-on:
+          - dockercontainerrunner
+        script:
+          - if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          - pip install coverage
+          - cd src/ && coverage run manage.py test --failfast --parallel
+          - coverage report -m --fail-under=70
+
+build-runner: &build-runner
+  step:
+    name: "Build container image"
+    services:
+      - docker
+    script:
+
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      # Build the image
+      - docker build -t $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0 -f devops/dockerfile-qa .
+
+changelog: &changelog
+  step:
+    name: "Generate changelog if MergeCommit"
+    runs-on:
+      - dockercontainerrunner
+    script:
+      - echo "Checking Merge Commit"
+      - chmod +x MergeCommitCheck.sh && ./MergeCommitCheck.sh
+      - echo "This is a merge commit"
+    artifacts:
+      - CHANGELOG.md
+
+push-image-preqa: &push-image-preqa
+  step:
+    name: "Build container image"
+    runs-on: runnershellindocker
+    shell: bash
+    trigger: manual
+    script:
+      - export DOCKER_HOST=""
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      # Build the image
+      - docker build -t $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0 -f devops/dockerfile-qa . 
+
+deploy-image-preqa: &deploy-image-preqa
+  step:
+    name: "Deploy container image pre-qa"
+    runs-on: runnershellindocker
+    deployment: preqa
+    script:
+      - export DOCKER_HOST=""
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      - docker rm -f tfg-symptom-api.tfg.test 2>/dev/null || true
+      - docker run -d --name tfg-symptom-api.tfg.test -e MYSQL_ROOT_PASSWORD=Maite123 -e MYSQL_DATABASE=listpacients -e MYSQL_USER=listpacients -e MYSQL_PASSWORD=contrasena_listpacients -e DATABASE_HOST=127.0.0.1 -e DATABASE_PORT=3306 -v my_mysql:/var/lib/mysql -p 9080:80 -p 9040:443 -p 3306:3306 --network=tfg_develop_infrastructure $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0
+
+push-image-GCP: &push-image-GCP
+  step:
+    name: "Push image GCP"
+    script:
+      - export DOCKER_BUILDKIT=1
+      - BITBUCKET_BRANCH_LOWER=$(echo "$BITBUCKET_BRANCH" | tr '[:upper:]' '[:lower:]')
+      # Build the image
+      - docker build -t $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER:$BITBUCKET_BUILD_NUMBER.0.0 -f devops/dockerfile-qa . 
+      - pipe: atlassian/google-gar-push-image:0.3.0
+        variables:
+          KEY_FILE: $GOOGLE_APPLICATION_CREDENTIALS
+          LOCATION: "europe-west1"
+          PROJECT: "tfg-naru"
+          REPOSITORY: "tfgrepo"
+          IMAGE_NAME: $IMAGE_NAME-$BITBUCKET_BRANCH_LOWER
+          TAGS: $BITBUCKET_BUILD_NUMBER.0.0
+
+deploy-GCP: &deploy-GCP
+  step:
+    name: "Deploy to GCP"
+    deployment: Production
+    script:
+      - chmod +x devops/pods/cambiarVersion.sh
+      - ./devops/pods/cambiarVersion.sh $BITBUCKET_BUILD_NUMBER.0.0
+      - pipe: atlassian/google-gke-kubectl-run:3.3.0
+        variables:
+          KEY_FILE: $GOOGLE_APPLICATION_CREDENTIALS
+          LOCATION: "europe-west1-b"
+          PROJECT: "tfg-naru"
+          COMPUTE_ZONE: 'europe-west1-b'
+          CLUSTER_NAME: 'cluster-1'
+          KUBECTL_COMMAND: 'apply'
+          RESOURCE_PATH: 'devops/pods/symptom-deployment-cip.yaml'
+
+GCP-secrets: &GCP-secrets
+  step:
+    name: "Deploy secrets GCP"
+    script:
+      - chmod +x devops/pods/secretsGenerator.sh 
+      - ./devops/pods/secretsGenerator.sh
+      - pipe: atlassian/google-gke-kubectl-run:3.3.0
+        variables:
+          KEY_FILE: $GOOGLE_APPLICATION_CREDENTIALS
+          LOCATION: "europe-west1-b"
+          PROJECT: "tfg-naru"
+          COMPUTE_ZONE: 'europe-west1-b'
+          CLUSTER_NAME: 'cluster-1'
+          KUBECTL_COMMAND: 'apply'
+          RESOURCE_PATH: 'devops/pods/secrets.yaml'
+
+pipelines:
+  
+  default:
+    - <<: *test
+    - <<: *build-runner
+    
+  branches:
+    develop:
+      - <<: *test
+      - <<: *build-runner
+      - <<: *changelog
+      - <<: *push-image-GCP
+      - <<: *GCP-secrets
+      - <<: *deploy-GCP
+    develop2:
+      - <<: *test
+      - <<: *build-runner
+      - <<: *changelog
+      - <<: *push-image-preqa
+      - <<: *deploy-image-preqa
+    rel/*:
+      - <<: *test
+      - <<: *build-runner
+      - <<: *changelog
+      - <<: *push-image-preqa
+      - <<: *deploy-image-preqa
+  pull-requests:
+      '**':
+      - <<: *test
+      - <<: *build-runner
+      - <<: *push-image-preqa
+      - <<: *deploy-image-preqa
+

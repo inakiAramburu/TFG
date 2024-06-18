@@ -1,0 +1,122 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV key=value
+
+# ubuntu server lts + apache + pyhton + mysql
+RUN apt update && apt upgrade -y
+RUN apt install wget -y
+
+RUN mkdir -p /opt/src
+
+################ Python3.12 #####################
+
+
+RUN apt install -y software-properties-common
+RUN add-apt-repository -y ppa:deadsnakes/ppa
+RUN apt update
+RUN apt install -y python3.12 python3.12-dev python3.12-venv 
+
+
+################ Apache #####################
+RUN apt install -y apache2
+#Habilitar el módulo y reiniciar el servicio
+RUN a2enmod rewrite && \
+    service apache2 restart
+
+#copiar certificados 
+COPY ./devops/apache/certs/cert.pem /etc/ssl/certs/localhost.crt
+COPY ./devops/apache/certs/key.pem /etc/ssl/private/localhost.key
+
+#certificado de la CA minica
+COPY ./devops/apache/certs/CA/minica.pem /usr/local/share/ca-certificates/minica.crt
+RUN chmod 644 /usr/local/share/ca-certificates/minica.crt
+RUN update-ca-certificates
+
+
+RUN a2enmod ssl
+RUN a2ensite default-ssl
+
+
+WORKDIR /opt
+################ MOD_WSGI ################
+#
+#https://modwsgi.readthedocs.io/en/develop/user-guides/quick-installation-guide.html#apache-requirements
+#
+#crear un entorno virtual para poder instalar wsgi con python3.12 (por que si no por defecto pilla el 3.10)
+RUN python3.12 -m venv venv
+RUN apt-get update && apt -y install apache2-dev
+
+RUN wget https://github.com/GrahamDumpleton/mod_wsgi/archive/refs/tags/5.0.0.tar.gz
+RUN tar xvfz 5.0.0.tar.gz
+#activar el entorno virtual y compilar mod_wsgi
+RUN . venv/bin/activate && \
+    cd /opt/mod_wsgi-5.0.0 && \
+    ./configure && \
+    make && \
+    make install
+#crer un enlace simbolico para que apache pueda encontrar el modulo
+RUN ln -s /usr/lib/apache2/modules/mod_wsgi.so /etc/apache2/mods-enabled/mod_wsgi.so
+#RUN cp /usr/lib/apache2/modules/mod_wsgi.so /etc/apache2/mods-enabled/
+#Cargar el modulo en la configuración de apache 
+RUN echo "LoadModule wsgi_module mods-enabled/mod_wsgi.so" >> /etc/apache2/apache2.conf
+
+################ Evasión de ataques DDoS ################
+RUN apt install libapache2-mod-evasive -y
+#COPY devops/apache/mods-available/evasive.conf /etc/apache2/mods-available/evasive.conf
+################ Módulo de cabeceras ################
+RUN a2enmod headers
+
+#####################################################
+
+
+################MYSQL 8#####################
+RUN apt install -y mysql-server
+
+
+#configuracion mysql
+COPY ./devops/mysql/ /tmp/
+
+##Habilitar conexión remota
+RUN sed -i 's/127.0.0.1/0.0.0.0/g' /etc/mysql/mysql.conf.d/mysqld.cnf
+RUN chmod +x /tmp/config.sh
+RUN usermod -d /var/lib/mysql/ mysql
+RUN chown -R mysql:mysql /var/lib/mysql/
+
+##############################################
+
+
+
+
+
+##entorno virtual python3.12
+
+RUN apt-get install -y libmysqlclient-dev pkg-config
+WORKDIR /opt
+COPY requirements.txt requirements.txt
+
+RUN venv/bin/python3.12 -m pip install --upgrade pip
+RUN venv/bin/python3.12 -m pip install -r requirements.txt
+
+
+
+COPY ./devops/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+WORKDIR /opt
+
+
+
+ENTRYPOINT [ "/entrypoint.sh" ]
+
+
+#limpieza
+RUN apt clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN apt remove -y wget apache2-dev 
+RUN apt autoremove -y
+
+
+#CMD ["bash", "-c", "service mysql start && . /tmp/config.sh  && service apache2 start && tail -f /var/log/apache2/access.log -f /var/log/apache2/error.log -f /var/log/apache2/other_vhosts_access.log -f /var/log/mysql/error.log"]
+CMD ["bash", "-c", "tail -f /var/log/apache2/access.log -f /var/log/apache2/error.log -f /var/log/apache2/other_vhosts_access.log -f /var/log/mysql/error.log"]
+
+EXPOSE 80 443 3306
+#CMD ["sh", "-c", "while true; do sleep 1000; done"]
