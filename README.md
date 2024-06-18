@@ -1,4 +1,7 @@
-# Laburpena
+# Tresnak eta estrategiak CI/CD prozesu bat garatzeko medikuntza aplikazio batean / Tools and strategies for developing a CI/CD process in a medical application
+
+
+## Laburpena
 Proiektu honen helburu nagusia medikuntza aplikazio bat ezartzeko prozesua automatizatzea da. Datuen
 segurtasuna eta pribatutasuna kontuan hartuta, ezinezkoa izan zen benetako aplikaziora sartzea; hala ere,
 arkitektura bera berregin genuen modulu sinpleagoak erabiliz.
@@ -13,7 +16,7 @@ eta eskuzko hedapen bat egitean gertatzen diren giza akatsak murriztuz.
 **Inpaktua Garapen Jasangarriko Helburuetan (GJH)**: 3. Osasuna eta Ongizatea 9. Industria, berrikuntza
 eta azpiegitura
 
-# Resumen
+## Resumen
 El propósito principal de este proyecto es automatizar el proceso de implementación de una aplicación
 médica. Debido a consideraciones de seguridad y privacidad de datos, no fue posible acceder a la
 aplicación real; sin embargo, recreamos la misma arquitectura utilizando módulos más simples.
@@ -29,7 +32,7 @@ al realizar un despliegue manual.
 **Impacto en los Objetivos de Desarrollo Sostenible (ODS)**: 3. Salud y Bienestar, 9. industria, innovación
 e infraestructura
 
-# Abstract
+## Abstract
 The main purpose of this project is to automate the implementation process of a medical application. Due
 to security and data privacy considerations, it was not possible to access the actual application; however,
 we recreated the same architecture using simpler modules.
