@@ -9,6 +9,7 @@ aldaketak egiten dituenean, produkzio inplementazioa automatikoki gauzatzen da, 
 eta eskuzko hedapen bat egitean gertatzen diren giza akatsak murriztuz.
 
 **Hitz gakoak**: Medikuntza aplikazioa, API Gateway, hedapena.
+
 **Inpaktua Garapen Jasangarriko Helburuetan (GJH)**: 3. Osasuna eta Ongizatea 9. Industria, berrikuntza
 eta azpiegitura
 
@@ -22,7 +23,9 @@ automatizar todas las tareas de despliegue. Además, esta automatización facili
 aplicación, ya que cuando un desarrollador realiza cambios en el código, la implementación en producción
 se lleva a cabo de manera automática, simplificando el proceso y reduciendo los errores que se producen
 al realizar un despliegue manual.
+
 **Palabras claves**: Aplicación médica, API Gateway, despliegue.
+
 **Impacto en los Objetivos de Desarrollo Sostenible (ODS)**: 3. Salud y Bienestar, 9. industria, innovación
 e infraestructura
 
@@ -35,6 +38,8 @@ deployment time from 10 hours to as little as 30 minutes. This will be achieved 
 deployment tasks. In addition, this automation facilitates the continuous improvement of the application,
 as when a developer makes changes to the code, the deployment to production is carried out
 automatically, simplifying the process and reducing the errors that occur when deploying manually.
+
 **Keywords**: Medical application, API Gateway, deployment.
+
 **Sustainable Development Goals (SDG) impact**: 3. Good Health and Well-Being 9 Industry, innovation
 and infrastructure
